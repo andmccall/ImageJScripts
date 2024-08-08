@@ -1,4 +1,5 @@
-/** This script is for the automated analysis of microglia. It requires Labkit and SNT to be installed.
+/** This script is for the automated analysis of microglia. It requires Labkit, SNT, and Save as Movie
+ *  (https://sites.google.com/site/qingzongtseng/save-as-movie) to be installed.
  *  It also requires a LabKit classifier that segments the microglia from the background, though the script
  *  will automatically process out objects either too small or too large (see parameters below).
  *  
