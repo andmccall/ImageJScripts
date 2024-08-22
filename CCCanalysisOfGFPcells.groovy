@@ -216,10 +216,7 @@ for(Dataset thisDataset: imageList){
 	    	return;
 	    }
 	    
-	    return;
-	    
-	    println("Starting GFP pos cell labeled: " + (thisRegionLabel+1));
-	    
+	    println("Starting GFP pos cell labeled: " + (thisRegionLabel+1));	    
 	    		
 		//GFP autocorrelation
 		println("Analyzing GFP Positive autocorrelation of E1");
