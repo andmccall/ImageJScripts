@@ -82,6 +82,11 @@ def trimToRegion(Dataset input, Interval region){
 	)	
 }
 
+def setName(Dataset toSet, String name){
+	toSet.setName(name);
+	return toSet;
+}
+
 def addResultsToRunning(ArrayList<HashMap<String, Long>> runningTable, Table results){
 	runningTable.add(
             Maps.newHashMap(
@@ -106,10 +111,6 @@ for (id in WindowManager.getIDList()) {
 	imageList.add(convertService.convert(WindowManager.getImage(id),  net.imagej.Dataset.class));
 }
 
-//ArrayList<HashMap<String, Long>> runningTable = new ArrayList<>();
-//ArrayList<String> imageNames = new ArrayList<>();
-
-//List<Dataset> imageList = datasetService.getDatasets();
 ModuleInfo ccc = moduleService.getModuleById("command:CCC.Colocalization_by_Cross_Correlation");
 ModuleInfo labkit = moduleService.getModuleById("command:sc.fiji.labkit.ui.plugin.SegmentImageWithLabkitPlugin");
 
@@ -158,12 +159,6 @@ for(Dataset thisDataset: imageList){
 	)    
 	
 	Dataset gfpCh = datasetService.create(ops.transform().crop(thisDataset, gfpInterval, true));
-    
-    //RAItoDataset(Views.dropSingletonDimensions(dapiCh), thisDataset);
-    //RAItoDataset(Views.dropSingletonDimensions(gfpCh), thisDataset);
-    
-    //Dataset[] otherChannels = new Dataset[thisDataset.dimension(Axes.CHANNEL)-2];
-	//int i = 0;
 	
 	HashMap <int, Dataset> otherChannels = new HashMap();	
 
@@ -186,7 +181,6 @@ for(Dataset thisDataset: imageList){
 		"use_gpu", useGPU
 	).get().getOutput("output"), new ArrayList(["gfpNegative","gfpPositive"]));
 	
-	//println(labeledImage.getMapping().numSets());
 	LabelRegions gfpStatus = new LabelRegions(labeledImage);
 	
 //	uiService.show(gfpStatus.getLabelRegion("gfpNegative"));
@@ -197,6 +191,9 @@ for(Dataset thisDataset: imageList){
 	
 	println("Performing connected-component analysis on GFP positive cells");
 	ImgLabeling<Integer, BoolType> gfpPosCellLabels = ops.labeling().cca(gfpStatus.getLabelRegion("gfpPositive"), StructuringElement.EIGHT_CONNECTED);
+	
+//	uiService.show(gfpPosCellLabels.getIndexImg());
+//	uiService.show(trimToRegion(gfpCh, gfpPosCellLabels.getIndexImg()));
 	
 	config.put("WRITE_BIG_TIFF", true);
 	datasetIOservice.save(RAItoDataset(Views.zeroMin(gfpPosCellLabels.getIndexImg()), gfpCh.getImgPlus()), rootSave + thisDataset.getName() + "-labeledGfpPosCells.tif", config);
@@ -211,38 +208,43 @@ for(Dataset thisDataset: imageList){
 	    	return;
 	    }
 	    
+//	    uiService.show(trimToRegion(gfpCh, thisRegion));
+//	    uiService.show(thisRegion);
+	    
+	    trimmedGFP = setName(trimToRegion(gfpCh, thisRegion), thisDataset.getName() + "-E1");
+	    mask = setName(RAItoDataset(thisRegion, gfpCh.getImgPlus()),"GFPmask-"+(thisRegionLabel+1));
+	    
 	    println("Starting GFP pos cell labeled: " + (thisRegionLabel+1));	    
 	    		
 		//GFP autocorrelation
 		println("Analyzing GFP Positive autocorrelation of E1");
 		Table tempResultsTable = moduleService.run(ccc, false,
-	        "dataset1", trimToRegion(gfpCh, thisRegion),
-	        "dataset2", trimToRegion(gfpCh, thisRegion),
+	        "dataset1", trimmedGFP,
+	        "dataset2", trimmedGFP,
 	        "maskAbsent", false,
-	        "maskDataset", RAItoDataset(thisRegion, gfpCh.getImgPlus()),
+	        "maskDataset", mask,
 	        "significantDigits", 4,
 	        "generateContributionImages",true,
-	        "showIntermediates",false ,
+	        "showIntermediates",false,
 	        "saveFolder", new File(rootSave + "GFPpos" + File.separator + (thisRegionLabel+1) + File.separator + "E1xE1" + File.separator )
 	    	).get().getOutput("resultsTable");
 	    	
 	    correlationNameList.add("GFPPos cell " + (thisRegionLabel+1) + " - E1xE1");
 	    addResultsToRunning(runningTableOfCorrelations, tempResultsTable);
 	    
-//		HashMap<int, Table> gfpPosACResults = new HashMap<int, Table>();
-//		HashMap<int, Table> gfpPosCCResults = new HashMap<int, Table>();
 		otherChannels.forEach((chNum, chImage) ->
 		{
+			trimmedCh = setName(trimToRegion(chImage, thisRegion),thisDataset.getName() + "-Ch" + chNum);
 			println("Analyzing GFP Positive crosscorrelation of E1xCh" + chNum);
 		    tempResultsTable = moduleService.run(ccc, false,
-		        "dataset1", trimToRegion(gfpCh, thisRegion),
-		        "dataset2", trimToRegion(chImage, thisRegion),
+		        "dataset1", trimmedCh,
+		        "dataset2", trimmedGFP,
 		        "maskAbsent", false,
-		        "maskDataset", RAItoDataset(thisRegion, chImage.getImgPlus()),
+		        "maskDataset", mask,
 		        "significantDigits", 4,
 		        "generateContributionImages",true,
 		        "showIntermediates",false ,
-		        "saveFolder", new File(rootSave + "GFPpos" + File.separator +(thisRegionLabel+1) + File.separator + "E1xCh" + chNum + File.separator)
+		        "saveFolder", new File(rootSave + "GFPpos" + File.separator +(thisRegionLabel+1) + File.separator + "Ch" + chNum + "xE1" + File.separator)
 		    	).get().getOutput("resultsTable");
 		    	
 		    correlationNameList.add("GFPPos cell " + (thisRegionLabel+1) + " - E1xCh" + chNum);
@@ -250,10 +252,10 @@ for(Dataset thisDataset: imageList){
 			
 			println("Analyzing GFP Positive autocorrelation of Ch" + chNum);
 		    tempResultsTable = moduleService.run(ccc, false,
-		        "dataset1", trimToRegion(chImage, thisRegion),
-		        "dataset2", trimToRegion(chImage, thisRegion),
+		        "dataset1", trimmedCh,
+		        "dataset2", trimmedCh,
 		        "maskAbsent", false,
-		        "maskDataset", RAItoDataset(thisRegion, chImage.getImgPlus()),
+		        "maskDataset", mask,
 		        "significantDigits", 4,
 		        "generateContributionImages",true,
 		        "showIntermediates",false ,
@@ -267,10 +269,10 @@ for(Dataset thisDataset: imageList){
 		if(otherChannelsKeys.length == 2){
 			println("Analyzing GFP Positive crosscorrelation of Ch" + otherChannelsKeys[0] + " and Ch" + otherChannelsKeys[1]);
 			tempResultsTable = moduleService.run(ccc, false,
-		        "dataset1", trimToRegion(otherChannels.get(otherChannelsKeys[0]), thisRegion),
-		        "dataset2", trimToRegion(otherChannels.get(otherChannelsKeys[1]), thisRegion),
+		        "dataset1", setName(trimToRegion(otherChannels.get(otherChannelsKeys[0]), thisRegion),thisDataset.getName() + "-Ch" + otherChannelsKeys[0]),
+		        "dataset2", setName(trimToRegion(otherChannels.get(otherChannelsKeys[1]), thisRegion),thisDataset.getName() + "-Ch" + otherChannelsKeys[1]),
 		        "maskAbsent", false,
-		        "maskDataset", RAItoDataset(thisRegion, otherChannels.get(otherChannelsKeys[0]).getImgPlus()),
+		        "maskDataset", mask,
 		        "significantDigits", 4,
 		        "generateContributionImages",true,
 		        "showIntermediates",false ,
@@ -283,18 +285,19 @@ for(Dataset thisDataset: imageList){
     });
 	
 	//region GFP Negative 
-	//have to trim original image when running CCC, to size of LabelRegion
 	LabelRegion<BoolType> gfpNegativeRegion = gfpStatus.getLabelRegion("gfpNegative");
 	
-//	HashMap<int, Table> gfpNegACResults = new HashMap<int, Table>();	
 	otherChannels.forEach((chNum, chImage) ->
 	{
+		trimmedCh = setName(trimToRegion(chImage, gfpNegativeRegion), thisDataset.getName() + "-Ch" + chNum);
+		mask = setName(RAItoDataset(gfpNegativeRegion, chImage.getImgPlus()), "NegativeMask");
+		
 		println("Analyzing GFP Negative autocorrelation of Ch" + chNum);
 	    tempResultsTable = moduleService.run(ccc, false,
-	        "dataset1", trimToRegion(chImage, gfpNegativeRegion),
-	        "dataset2", trimToRegion(chImage, gfpNegativeRegion),
+	        "dataset1", trimmedCh,
+	        "dataset2", trimmedCh,
 	        "maskAbsent", false,
-	        "maskDataset", RAItoDataset(gfpNegativeRegion, chImage.getImgPlus()),
+	        "maskDataset", mask,
 	        "significantDigits", 4,
 	        "generateContributionImages",true,
 	        "showIntermediates",false ,
@@ -309,10 +312,10 @@ for(Dataset thisDataset: imageList){
 	if(otherChannelsKeys.length == 2){
 		println("Analyzing GFP Negative crosscorrelation of Ch" + otherChannelsKeys[0] + " and Ch" + otherChannelsKeys[1]);
 		tempResultsTable = moduleService.run(ccc, false,
-	        "dataset1", trimToRegion(otherChannels.get(otherChannelsKeys[0]), gfpNegativeRegion),
-	        "dataset2", trimToRegion(otherChannels.get(otherChannelsKeys[1]), gfpNegativeRegion),
+	        "dataset1", setName(trimToRegion(otherChannels.get(otherChannelsKeys[0]), gfpNegativeRegion),thisDataset.getName() + "-Ch" + otherChannelsKeys[0]),
+	        "dataset2", setName(trimToRegion(otherChannels.get(otherChannelsKeys[1]), gfpNegativeRegion),thisDataset.getName() + "-Ch" + otherChannelsKeys[1]),
 	        "maskAbsent", false,
-	        "maskDataset", RAItoDataset(gfpNegativeRegion, otherChannels.get(otherChannelsKeys[0]).getImgPlus()),
+	        "maskDataset", mask,
 	        "significantDigits", 4,
 	        "generateContributionImages",true,
 	        "showIntermediates",false ,
@@ -321,8 +324,7 @@ for(Dataset thisDataset: imageList){
 	   
 	   	correlationNameList.add("GFPneg - Ch" + otherChannelsKeys[0] + "xCh" + otherChannelsKeys[1]);
 	    addResultsToRunning(runningTableOfCorrelations, tempResultsTable); 
-	}
-	
+	}	
 	//endregion
 	
 
