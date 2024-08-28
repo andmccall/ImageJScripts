@@ -208,11 +208,6 @@ for(Dataset thisDataset: imageList){
 	    LabelRegion<BoolType> thisRegion = gfpPosCellRegions.getLabelRegion(thisRegionLabel);
 	    
 	    if(thisRegion.size() <=  minPixels){
-	    	//skip marching cubes when even the region is too small
-	    	return;
-	    }
-	    
-	    if(ops.geom().size(ops.geom().marchingCubes(thisRegion)).get() <= minPixels) {
 	    	return;
 	    }
 	    
