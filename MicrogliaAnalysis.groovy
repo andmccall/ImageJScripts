@@ -1,5 +1,4 @@
-/** This script is for the automated analysis of microglia. It requires Labkit, SNT, and Save as Movie
- *  (https://sites.google.com/site/qingzongtseng/save-as-movie) to be installed.
+/** This script is for the automated analysis of microglia. It requires Labkit and SNT to be installed.
  *  It also requires a LabKit classifier that segments the microglia from the background, though the script
  *  will automatically process out objects either too small or too large (see parameters below).
  *  
@@ -7,20 +6,20 @@
  *  above where the parameters will be modified.
  *  
  *  @author Andrew McCall 
- * 
- * The parameter values are in pixels. These parameters are for UB OIAF Andor Dragonfly images taken at: 63x/1.3NA
  */
  
 
 //parameters:
-//Soma Eucledian Distance Transform parameter:
-float minEDTvalue = 10.0;
-long inclusiveEDTborder = 15;
+//Soma Eucledian Distance Transform parameters:
+//Minimum cell body radius in microns
+float minEDTvalue = 1.0;
+//Minimum distance center of cell body must be from image border in microns
+float inclusiveEDTborder = 2;
 
 
-//RegionSizeLimit (size of the bounding box of the full cell in pixels):
-long minRegionSize = 300000;
-long maxRegionSize = 1400000;
+//RegionSizeLimit (size limit of the full cell in cubic microns):
+float minRegionSize = 570;
+float maxRegionSize = 2700;
 
 //SNT:
 int somaSearchDiameter = 4;
@@ -29,6 +28,8 @@ double pruneLengthThreshold = 1.0;
 boolean connectComponents = true;
 double connectComponentsDistance = 2.0;
 double spineInclMaxLength = 4.0;
+//Sholl radius step size in microns
+double shollStepSize = 1.0;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -37,6 +38,8 @@ import ij.gui.Roi;
 import io.scif.config.SCIFIOConfig;
 
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import net.imagej.axis.Axes;
 import net.imagej.Dataset;
 import net.imagej.ImgPlus;
@@ -84,6 +87,8 @@ import sc.fiji.snt.*
 import sc.fiji.snt.analysis.*
 import sc.fiji.snt.analysis.graph.*
 import sc.fiji.snt.analysis.sholl.*
+import sc.fiji.snt.analysis.sholl.math.*
+import sc.fiji.snt.analysis.sholl.parsers.*
 import sc.fiji.snt.annotation.*
 import sc.fiji.snt.io.*
 import sc.fiji.snt.plugin.*
@@ -129,6 +134,16 @@ def RAItoDataset(RandomAccessibleInterval input, ImgPlus Metadata){
 	       )	
 }
 
+def listToMap(List<Double> keys, List<Double> values){
+	HashMap<String, Double> outMap = new HashMap();
+	Iterator<Double> keyIter = keys.iterator();
+    Iterator<Double> valIter = values.iterator();
+    while(keyIter.hasNext() && valIter.hasNext()){
+    	outMap.put(keyIter.next().toString(), valIter.next());
+    }
+    return outMap;
+}
+
 
 config = new SCIFIOConfig();
 config.writerSetFailIfOverwriting(false);
@@ -138,11 +153,15 @@ for (int i = 0; i < fileList.length; ++i) {
     	continue;
     }
 	ArrayList<HashMap<String, Double>> runningTable = new ArrayList<>();
+	ArrayList<HashMap<String, Double>> runningShollTable = new ArrayList<>();
 	ArrayList<String> treeNames = new ArrayList<>();
+	
+	
     Dataset image = datasetioService.open(fileList[i].getPath());
     
     new File(fileList[i].getPath() +"-out" + File.separator).mkdirs();
 
+	float pixelVolume = image.axis(Axes.X).get().calibratedValue(1) * image.axis(Axes.Y).get().calibratedValue(1) * image.axis(Axes.Z).get().calibratedValue(1);
     ImgPlus microglia;
 
     int channelAxis = image.dimensionIndex(Axes.CHANNEL);
@@ -184,15 +203,16 @@ for (int i = 0; i < fileList.length; ++i) {
 
     regions.getExistingLabels().forEach(thisRegionLabel -> {
         LabelRegion<BoolType> thisRegion = regions.getLabelRegion(thisRegionLabel);
-        if(thisRegion.size() <= minRegionSize || thisRegion.size() >= maxRegionSize) {
-        	println("Region size not within range: " + thisRegion.size());
+        float calibratedRegionSize = thisRegion.size()*pixelVolume;
+        if(calibratedRegionSize <= minRegionSize || calibratedRegionSize >= maxRegionSize) {
+        	println("Region size not within range: " + calibratedRegionSize);
         	return;
         }
         
         filledRegion = ops.morphology().fillHoles(ops.run("convert.bit", Views.zeroMin(thisRegion)));        
         //uiService.show(filledRegion);
         
-        RandomAccessibleInterval edtImage = ops.image().distancetransform(filledRegion);        
+        RandomAccessibleInterval edtImage = ops.image().distancetransform(filledRegion, new float[] {image.axis(Axes.X).get().calibratedValue(1), image.axis(Axes.Y).get().calibratedValue(1), image.axis(Axes.Z).get().calibratedValue(1)});        
         //uiService.show(edtImage);
 
         RealType maxEuclidean = ops.stats().max(edtImage);
@@ -204,21 +224,31 @@ for (int i = 0; i < fileList.length; ++i) {
         //uiService.show(ops.threshold().apply(edtImage, new FloatType((float)(maxEuclidean.getRealFloat()-0.1))));
         
         Double[] centroid = ops.geom().centerOfGravity(ops.threshold().apply(edtImage, new FloatType((float)(maxEuclidean.getRealFloat()-0.1)))).positionAsDoubleArray();
-        long[] edtBorders = edtImage.dimensionsAsLongArray();
+        long[] edtDims = edtImage.dimensionsAsLongArray();
+        double[] edtBorders = new double[edtDims.length];
         
-        for(int dim = 0; dim < centroid.size(); ++dim){
+        
+        centroid[0] = centroid[0] * image.axis(Axes.X).get().calibratedValue(1);
+        centroid[1] = centroid[1] * image.axis(Axes.Y).get().calibratedValue(1);
+        centroid[2] = centroid[2] * image.axis(Axes.Z).get().calibratedValue(1);
+        
+        edtBorders[0] = edtDims[0] * image.axis(Axes.X).get().calibratedValue(1);
+        edtBorders[1] = edtDims[1] * image.axis(Axes.Y).get().calibratedValue(1);
+        edtBorders[2] = edtDims[2] * image.axis(Axes.Z).get().calibratedValue(1);
+        
+        for(int dim = 0; dim < centroid.size(); ++dim){        	
         	if(centroid[dim] <= inclusiveEDTborder || centroid[dim] >= (edtBorders[dim]-inclusiveEDTborder)){
         		return;
         	}
         }
     	
-    	String treeName = (-thisRegion.origin().getLongPosition(0)) + "," + (-thisRegion.origin().getLongPosition(1)) + "," +(-thisRegion.origin().getLongPosition(2)) + "-" + thisRegion.size();
-        String thisRegionOutputFolder = fileList[i].getPath()+"-out" + File.separator + treeName + File.separator;
+    	//String treeName = (-thisRegion.origin().getLongPosition(0)) + "," + (-thisRegion.origin().getLongPosition(1)) + "," +(-thisRegion.origin().getLongPosition(2)) + "-" + thisRegionLabel;
+        String thisRegionOutputFolder = fileList[i].getPath()+"-out" + File.separator + thisRegionLabel + File.separator;
         new File(thisRegionOutputFolder).mkdirs();
 
         ImagePlus thisRegionMask = RAItoImagePlus(filledRegion, microglia);
 
-        thisRegionMask.setTitle(thisRegion.size() + "-mask");
+        thisRegionMask.setTitle(thisRegionLabel + "-mask");
 
         //uiService.show(thisRegionMask);
 
@@ -237,7 +267,7 @@ for (int i = 0; i < fileList.length; ++i) {
         thisRegionImg = RAItoDataset(Views.zeroMin(ops.transform().intervalView(microglia, thisRegion)), microglia);
         //thisRegionImg.setTitle(thisRegion.size() + "-data");
         //uiService.show(thisRegionImg);
-        datasetioService.save(thisRegionImg, thisRegionOutputFolder + thisRegion.size() + "-data.tif", config);
+        datasetioService.save(thisRegionImg, thisRegionOutputFolder + thisRegionLabel + "-data.tif", config);
         
         Img thisRegionIsolatedImg = microglia.factory().create(thisRegion);            
         LabelRegionMaskApply: {
@@ -263,7 +293,7 @@ for (int i = 0; i < fileList.length; ++i) {
         IJ.run(isolatedImagePlus, "3D Project...", "projection=[Brightest Point] axis=Y-Axis slice=1 initial=0 total=358 rotation=2 lower=1 upper=255 opacity=0 surface=100 interior=50 interpolate");
         rotating = IJ.getImage();
         IJ.run(rotating, "Canvas Size...", "width="+(rotating.getWidth() + rotating.getWidth()%2)+" height="+(rotating.getHeight() + rotating.getHeight()%2)+" position=Top-Left zero");	            
-        IJ.run(rotating, "Movie...", "frame=15 container=.mp4 using=MPEG4 video=excellent save=[" + thisRegionOutputFolder + thisRegion.size() + "-isolated.mp4]");
+        IJ.run(rotating, "Movie...", "frame=15 container=.mp4 using=MPEG4 video=excellent save=[" + thisRegionOutputFolder + thisRegionLabel + "-isolated.mp4]");
         rotating.changes = false;
         
         //SNT thisSNT = sntService.initialize(thisRegionMask, false);
@@ -289,7 +319,7 @@ for (int i = 0; i < fileList.length; ++i) {
     	
     	if(trees.size() > 1){System.out.println("Error: more than one tree produced for a single cell");}
         
-        treeNames.add(treeName);
+        treeNames.add("" + thisRegionLabel);
         for(Tree tree:trees){
         	tree.get(0).setSWCType(Path.SWC_SOMA);
         	
@@ -348,6 +378,17 @@ for (int i = 0; i < fileList.length; ++i) {
         				.build()
         		)
         	)
+        	
+        	//Sholl Analysis        
+	        TreeParser parser = new TreeParser(tree);
+	        parser.setCenter(centroid);
+	        parser.setStepSize(shollStepSize);
+	        parser.parse();
+	        Profile shollProfile = parser.getProfile();
+	        HashMap<String, Double> tempShollMap = listToMap(shollProfile.radii(), shollProfile.counts());  
+	        runningShollTable.add(tempShollMap);
+	        Table shollTable = Tables.wrap(shollProfile.counts(), thisRegionLabel + "-Counts", shollProfile.radii().stream().map(String::valueOf).collect(Collectors.toList()));
+	        ioService.save(shollTable, thisRegionOutputFolder + thisRegionLabel + "-ShollCounts.csv");  
         }
         	            
         isolatedImagePlus.close();
@@ -360,7 +401,13 @@ for (int i = 0; i < fileList.length; ++i) {
     }
     else{
 	    concatenatedTable = Tables.wrap(runningTable, treeNames);
-		ioService.save(concatenatedTable, fileList[i].getPath() +"-out" + File.separator + "concatenatedTable.csv");
+		ioService.save(concatenatedTable, (fileList[i].getPath()) + "-out" + File.separator + "concatenatedResultsTable.csv");
 		uiService.show(concatenatedTable);
+		
+		concatenatedShollTable = Tables.wrap(runningShollTable, treeNames);
+		ioService.save(concatenatedShollTable, (fileList[i].getPath()) + "-out" + File.separator + "concatenatedShollTable.csv");
+		uiService.show(concatenatedShollTable);
     }
 }
+
+println("Script Finished!");
