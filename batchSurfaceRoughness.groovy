@@ -1,0 +1,116 @@
+/**
+ * Script to analyze surface roughness of input z-stack surface profilometry images.
+ * Sends Table to UIService, as Table parameter as output doesn't seem to work for SciJava groovy scripting.
+ * Or, I'm doing something wrong.
+ * 
+ * @param z-stack surface profilometry images
+ * 
+ * @return void
+ * 
+ * @author Andrew McCall
+ */
+
+//Lower cutoff for roughness, used to seed Gaussian blur sigma
+float lowerCutoff = 2.50;
+float upperCutoff = 250;
+
+import ij.IJ;
+import ij.ImagePlus;
+import ij.WindowManager;
+import ij.plugin.ImageCalculator;
+import ij.plugin.ZProjector;
+
+import com.google.common.collect.ImmutableMap;
+
+import net.imagej.Dataset;
+
+import net.imglib2.loops.LoopBuilder;
+
+import org.scijava.table.Table;
+import org.scijava.table.Tables;
+
+
+//Using this message parameter to force the very nice files Scijava widget
+#@ String (visibility = MESSAGE, value="Drag and drop image files to field below.", required=false) msg
+#@ File[] (label="Select images", style="files") inputFiles
+#@ UIService uiService
+#@ OpService ops
+#@ IOService ioService
+#@ ConvertService convert
+#@ DatasetService datasetService
+#@ DatasetIOService datasetIOService
+
+Table concatenatedTable;
+
+ArrayList<LinkedHashMap<String, Float>> runningTable = new ArrayList<>();
+ArrayList<String> imageNames = new ArrayList<>();
+
+def closeImage(ImagePlus toClose){
+	toClose.changes = false;
+	toClose.close();
+}
+
+for(File file:inputFiles){
+	if(!datasetIOService.canOpen(file.getPath())){
+		println(file.getPath() + " - cannot be opened as an image by Fiji, skipping file.");
+		continue;
+	}
+	saveFolder = file.getPath() + "-roughness" + File.separator;
+	new File(saveFolder).mkdirs();
+	//Using datasetIOService to open IMS files
+	println("Opening: " + file.getPath());
+	imp = convert.convert(datasetIOService.open(file.getPath()), ij.ImagePlus.class);
+	//imp =  IJ.openImage(file.getPath());
+	imageNames.add(imp.getShortTitle());
+	zProj = ZProjector.run(imp,"max");
+	IJ.saveAs(zProj, "Tiff", saveFolder + imp.getShortTitle() + "_z-Projection.tif");
+	closeImage(zProj);
+	println("Computing topography");
+	IJ.run(imp, "Compute Topography", "height threshold=0 quadratic_0=20");
+	topoImage = WindowManager.getCurrentImage();
+	IJ.run(topoImage, "Remove Slope", "");
+	
+	IJ.run(topoImage, "Duplicate...", "title=roughness");
+	roughness = WindowManager.getCurrentImage();
+	IJ.run(topoImage, "Duplicate...", "title=waviness");
+	waviness = WindowManager.getCurrentImage();
+	closeImage(topoImage);
+			
+	println("Subtracting waviness");
+	IJ.run(roughness, "Gaussian Blur...", "sigma="+lowerCutoff+" scaled");
+	IJ.run(waviness, "Gaussian Blur...", "sigma="+upperCutoff+" scaled");
+	
+	//Doesn't work without the create, not sure why
+	resultOfRoughness = ImageCalculator.run(roughness, waviness, "Subtract create 32-bit");
+	closeImage(roughness);
+	closeImage(waviness);
+	
+	roughnessDS = convert.convert(resultOfRoughness, net.imagej.Dataset.class);
+	closeImage(resultOfRoughness);
+	
+	println("Calculating absolute value image");
+	absRoughness = roughnessDS.copy();
+	//absRoughness = datasetService.create(roughnessDS);
+//	LoopBuilder.setImages(absRoughness, roughnessDS).multiThreaded().forEachPixel(
+//		(output, input) -> {
+//			output.setReal(ops.math().abs(input.getRealFloat()));
+//		}
+//	);
+	absRoughness.cursor().forEachRemaining((pixel) -> {pixel.setReal(ops.math().abs(pixel.getRealFloat()))});
+	
+	println("Concatenating surface metrics");
+	runningTable.add(
+		ImmutableMap.of(
+			"Mean (Sa)", ops.stats().mean(absRoughness), 
+			"RMS (Sq)", ops.stats().stdDev(absRoughness),
+			"Skew (Ssk)", ops.stats().skewness(roughnessDS),
+			"Kurtosis (Sku)", ops.stats().kurtosis(roughnessDS),
+			"Min (Sv)", ops.stats().min(roughnessDS),
+			"Max (Sz)", ops.stats().max(roughnessDS)
+		)
+	);
+}
+
+concatenatedTable = Tables.wrap(runningTable, imageNames);
+
+uiService.show(concatenatedTable);
