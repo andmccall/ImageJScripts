@@ -93,13 +93,20 @@ for(File file:inputFiles){
 	
 	println("Calculating absolute value image");
 	absRoughness = roughnessDS.copy();
+	
 	//absRoughness = datasetService.create(roughnessDS);
-//	LoopBuilder.setImages(absRoughness, roughnessDS).multiThreaded().forEachPixel(
-//		(output, input) -> {
-//			output.setReal(ops.math().abs(input.getRealFloat()));
+//	LoopBuilder.setImages(absRoughness).multiThreaded().forEachPixel(
+//		(pixel) -> {
+//			if(pixel.getRealFloat()<0)
+//				pixel.setReal(-1*(pixel.getRealFloat()));
 //		}
 //	);
-	absRoughness.cursor().forEachRemaining((pixel) -> {pixel.setReal(ops.math().abs(pixel.getRealFloat()))});
+
+	absRoughness.cursor().forEachRemaining((pixel) -> {
+		if(pixel.getRealFloat()<0)
+				pixel.setReal(-1*(pixel.getRealFloat()));
+		}
+	);
 	
 	println("Concatenating surface metrics");
 	runningTable.add(
