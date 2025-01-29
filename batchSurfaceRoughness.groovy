@@ -1,9 +1,11 @@
 /**
  * Script to analyze surface roughness of input z-stack surface profilometry images.
  * Sends Table to UIService, as Table parameter as output doesn't seem to work for SciJava groovy scripting.
+ * Also saves table to designated folder location.
  * Or, I'm doing something wrong.
  * 
  * @param z-stack surface profilometry images
+ * @param Output directory location to save 'ConcatenatedTable.csv' in
  * 
  * @return void
  * 
@@ -33,6 +35,7 @@ import org.scijava.table.Tables;
 //Using this message parameter to force the very nice files Scijava widget
 #@ String (visibility = MESSAGE, value="Drag and drop image files to field below.", required=false) msg
 #@ File[] (label="Select images", style="files") inputFiles
+#@ File (label="Select save location", style="directory") outputDir
 #@ UIService uiService
 #@ OpService ops
 #@ IOService ioService
@@ -109,8 +112,8 @@ for(File file:inputFiles){
 			"Max (Sz)", ops.stats().max(roughnessDS)
 		)
 	);
+	concatenatedTable = Tables.wrap(runningTable, imageNames);
+	ioService.save(concatenatedTable, outputDir.getPath() + File.separator + "ConcatenatedTable.csv");
 }
-
-concatenatedTable = Tables.wrap(runningTable, imageNames);
 
 uiService.show(concatenatedTable);
