@@ -92,15 +92,15 @@ for (int i = 0; i < fileList.length; ++i) {
 	 * but would likely be much more time consuming.
 	 */
 	println("Isolating largest component");
-    boneRegions.getExistingLabels().forEach(thisRegionLabel -> {
-    	LabelRegion<BoolType> thisRegion = boneRegions.getLabelRegion(thisRegionLabel);
-    	//Masks.toIterableRegion
-    	//int size = Masks.toIterableRegion(maskInterval.and(Masks.toMaskInterval(thisRegion))).size();
-    	//println(size);
-    	if(boneRegion == null || thisRegion.size() > boneRegion.size()){
-    		boneRegion = thisRegion;
-    	}
-    });
+	boneRegions.getExistingLabels().forEach(thisRegionLabel -> {
+		LabelRegion<BoolType> thisRegion = boneRegions.getLabelRegion(thisRegionLabel);
+		//Masks.toIterableRegion
+		//int size = Masks.toIterableRegion(maskInterval.and(Masks.toMaskInterval(thisRegion))).size();
+		//println(size);
+		if(boneRegion == null || thisRegion.size() > boneRegion.size()){
+			boneRegion = thisRegion;
+		}
+	});
 	
 	println("Largest bone in mask region found (mm^3): " + boneRegion.size()*pixelVolume);
 	//uiService.show(ops.logic().and(ops.threshold().apply(image, threshold), mask));
