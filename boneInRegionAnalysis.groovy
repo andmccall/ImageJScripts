@@ -25,7 +25,7 @@ import net.imglib2.roi.*;
 import net.imglib2.roi.labeling.*;
 import net.imglib2.view.Views;
 
-int thresholdValue= 38046; //38046 = 300 mgHA/ccm, 38577 = 350 mgHA/ccm
+int thresholdValue= 38577; //38046 = 300 mgHA/ccm, 38577 = 350 mgHA/ccm
 float calibrationSlope = 0.0941162;
 float calibrationOffset = -3280.710007;
 
@@ -77,12 +77,13 @@ for (int i = 0; i < fileList.length; ++i) {
 	
 	IterableRegion boneRegion; //boneRegion to be analyzed
 	
+	maskInterval = Masks.toMaskInterval(mask);
+	allBoneInMask = maskInterval.and(Masks.toMaskInterval(ops.threshold().apply(image, threshold)));
+	
 	println("Identifying connected components");
-	ImgLabeling<Integer, BoolType> labeledBones = ops.labeling().cca(ops.threshold().apply(image, threshold), StructuringElement.EIGHT_CONNECTED);
+	ImgLabeling<Integer, BoolType> labeledBones = ops.labeling().cca(Masks.toIterableRegion(allBoneInMask), StructuringElement.EIGHT_CONNECTED);
 	
 	LabelRegions<BoolType> boneRegions = new LabelRegions(labeledBones);
-	
-	maskInterval = Masks.toMaskInterval(mask);
 
 	/*
 	 * This next loop currently searches for the largest connected bone in the mask region. 
@@ -94,14 +95,14 @@ for (int i = 0; i < fileList.length; ++i) {
     boneRegions.getExistingLabels().forEach(thisRegionLabel -> {
     	LabelRegion<BoolType> thisRegion = boneRegions.getLabelRegion(thisRegionLabel);
     	//Masks.toIterableRegion
-    	int size = Masks.toIterableRegion(maskInterval.and(Masks.toMaskInterval(thisRegion))).size();
+    	//int size = Masks.toIterableRegion(maskInterval.and(Masks.toMaskInterval(thisRegion))).size();
     	//println(size);
-    	if(boneRegion == null || size > boneRegion.size()){
-    		boneRegion = Masks.toIterableRegion(maskInterval.and(Masks.toMaskInterval(thisRegion)));
+    	if(boneRegion == null || thisRegion.size() > boneRegion.size()){
+    		boneRegion = thisRegion;
     	}
     });
 	
-	println("Largest bone in mask region found: " + boneRegion.size());
+	println("Largest bone in mask region found (mm^3): " + boneRegion.size()*pixelVolume);
 	//uiService.show(ops.logic().and(ops.threshold().apply(image, threshold), mask));
 	
 	sampledBone = Regions.sample(boneRegion, image);
