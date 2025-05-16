@@ -12,6 +12,8 @@ import net.imagej.axis.Axes;
  
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
+import io.scif.config.SCIFIOConfig;
  
 import org.scijava.table.Table;
 import org.scijava.table.Tables;
@@ -21,6 +23,7 @@ import net.imglib2.type.numeric.ComplexType;
 import net.imglib2.type.logic.BoolType;
 import net.imglib2.roi.*;
 import net.imglib2.roi.labeling.*;
+import net.imglib2.view.Views;
 
 int thresholdValue= 38046; //38046 = 300 mgHA/ccm, 38577 = 350 mgHA/ccm
 float calibrationSlope = 0.0941162;
@@ -32,6 +35,7 @@ float calibrationOffset = -3280.710007;
 #@ File (label="Set output folder", style="directory") outputDir
 #@ UIService uiService
 #@ OpService ops
+#@ DatasetService datasetService
 #@ DatasetIOService datasetioService
 #@ IOService ioService
 #@ ConvertService converter
@@ -49,6 +53,9 @@ if(!datasetioService.canOpen(maskFile.getPath())){
 
 mask = ops.convert().bit(datasetioService.open(maskFile.getPath()));
 IterableRegion maskRegion = Regions.iterable(mask);
+
+config = new SCIFIOConfig();
+config.writerSetFailIfOverwriting(false);
 
 for (int i = 0; i < fileList.length; ++i) {
 	if(!datasetioService.canOpen(fileList[i].getPath())){
@@ -98,6 +105,9 @@ for (int i = 0; i < fileList.length; ++i) {
 	//uiService.show(ops.logic().and(ops.threshold().apply(image, threshold), mask));
 	
 	sampledBone = Regions.sample(boneRegion, image);
+	
+	println("Saving bone region to file");
+	datasetioService.save(datasetService.create(ops.convert().int8(Views.zeroMin(boneRegion))), outputDir.getPath() + File.separator + image.getName() + "-largestBoneRegion.tif", config);
 	
 	println("Analyzing bone in region");
 	imageNames.add(image.getName());
