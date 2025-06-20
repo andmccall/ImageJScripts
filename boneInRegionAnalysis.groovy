@@ -18,14 +18,21 @@ import io.scif.config.SCIFIOConfig;
 import org.scijava.table.Table;
 import org.scijava.table.Tables;
 
+import net.imglib2.img.Img;
 import net.imglib2.algorithm.labeling.ConnectedComponents.StructuringElement;
+import net.imglib2.algorithm.neighborhood.RectangleShape;
 import net.imglib2.type.numeric.ComplexType;
 import net.imglib2.type.logic.BoolType;
+import net.imglib2.img.ImgView;
+import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.roi.*;
 import net.imglib2.roi.labeling.*;
+import net.imglib2.roi.util.IterableRegionOnBooleanRAI;
 import net.imglib2.view.Views;
 
 int thresholdValue= 38577; //38046 = 300 mgHA/ccm, 38577 = 350 mgHA/ccm
+
+//Do not change these values
 float calibrationSlope = 0.0941162;
 float calibrationOffset = -3280.710007;
 
@@ -54,6 +61,8 @@ if(!datasetioService.canOpen(maskFile.getPath())){
 mask = ops.convert().bit(datasetioService.open(maskFile.getPath()));
 IterableRegion maskRegion = Regions.iterable(mask);
 
+RectangleShape shape = new RectangleShape(2, true);
+
 config = new SCIFIOConfig();
 config.writerSetFailIfOverwriting(false);
 
@@ -80,8 +89,12 @@ for (int i = 0; i < fileList.length; ++i) {
 	maskInterval = Masks.toMaskInterval(mask);
 	allBoneInMask = maskInterval.and(Masks.toMaskInterval(ops.threshold().apply(image, threshold)));
 	
+	println("Eroding mask to separate tooth");	
+	Img erodeImg = ops.convert().bit(Masks.toIterableRegion(allBoneInMask));	
+	erodeImg = ops.morphology().erode(erodeImg, shape);
+	
 	println("Identifying connected components");
-	ImgLabeling<Integer, BoolType> labeledBones = ops.labeling().cca(Masks.toIterableRegion(allBoneInMask), StructuringElement.EIGHT_CONNECTED);
+	ImgLabeling<Integer, BoolType> labeledBones = ops.labeling().cca(erodeImg, StructuringElement.EIGHT_CONNECTED);
 	
 	LabelRegions<BoolType> boneRegions = new LabelRegions(labeledBones);
 
@@ -92,15 +105,22 @@ for (int i = 0; i < fileList.length; ++i) {
 	 * but would likely be much more time consuming.
 	 */
 	println("Isolating largest component");
-	boneRegions.getExistingLabels().forEach(thisRegionLabel -> {
-		LabelRegion<BoolType> thisRegion = boneRegions.getLabelRegion(thisRegionLabel);
-		//Masks.toIterableRegion
-		//int size = Masks.toIterableRegion(maskInterval.and(Masks.toMaskInterval(thisRegion))).size();
-		//println(size);
-		if(boneRegion == null || thisRegion.size() > boneRegion.size()){
-			boneRegion = thisRegion;
-		}
-	});
+    boneRegions.getExistingLabels().forEach(thisRegionLabel -> {
+    	LabelRegion<BoolType> thisRegion = boneRegions.getLabelRegion(thisRegionLabel);
+    	//Masks.toIterableRegion
+    	//int size = Masks.toIterableRegion(maskInterval.and(Masks.toMaskInterval(thisRegion))).size();
+    	//println(size);
+    	if(boneRegion == null || thisRegion.size() > boneRegion.size()){
+    		boneRegion = thisRegion;
+    	}
+    });
+    
+    shape = new RectangleShape(3, true);
+    
+    println("Dilating largest region back to original size");
+    Img dilatedImg = ops.convert().bit(boneRegion);	
+	dilatedImg = ops.convert().bit(Masks.toIterableRegion(allBoneInMask.and(Masks.toMaskInterval(ops.morphology().dilate(dilatedImg, shape)))));	
+	boneRegion = new IterableRegionOnBooleanRAI(dilatedImg);
 	
 	println("Largest bone in mask region found (mm^3): " + boneRegion.size()*pixelVolume);
 	//uiService.show(ops.logic().and(ops.threshold().apply(image, threshold), mask));
