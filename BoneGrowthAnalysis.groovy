@@ -62,7 +62,7 @@ import com.google.common.collect.ImmutableMap;
 #@ Dataset experimentalMask
 
 #@ UIService uiService
-#@ ModuleService moduleService
+#@ CommandService commandService
 #@ DatasetService datasetService
 #@ OpService ops
 #@ DatasetIOService datasetioService
@@ -113,23 +113,37 @@ LinkedHashMap<String, Object> getBoneMeasurements(Dataset inputImage, Dataset an
 		}
 	}
 	
+	
+	//region BoneJ connectivity analysis
+	boneInAnalysisImgPlus = ops.create().imgPlus(boneInAnalysis, analysisRegionDS);
+	
+	//uiService.show(boneInAnalysisImgPlus);
+	
+	Table boneJResults = commandService.run("org.bonej.wrapperPlugins.ConnectivityWrapper", false,
+		"inputImage", boneInAnalysisImgPlus
+	).get().getOutput("resultsTable");
+	
+	//endRegion
+	
+	
 	//region EDT analysis
-	println("-Generating EDT");
-	//EDT image is not calibrated, output must be multiplied by Axis calibration
-	Img<FloatType> negativeEDT = ops.image().distancetransform(negInAnalysis);
 	
-	FloatType recal = new FloatType((float)inputImage.axis(Axes.X).get().calibratedValue(1));
-	negativeEDT = ops.math().multiply(negativeEDT, recal);
-	println("-Saving EDT");
-	datasetioService.save(datasetService.create(negativeEDT), outputDir + analysisRegionDS.getName() + "-edt.tif", config);
-	
-	println("-Analyzing EDT");
-	IterableInterval<FloatType> sampledNegEDT = Regions.sampleWithMask(new RandomAccessibleIntervalAsMaskInterval(analysisRegion), negativeEDT);
-	Collection<double> negativeEDTvalues = new ArrayList();
-	sampledNegEDT.cursor().forEachRemaining((pixel)->{
-		negativeEDTvalues.add(pixel.getRealDouble())
-	});
-	returnValues.put("NegEDTcollection", negativeEDTvalues);
+//	println("-Generating EDT");
+//	//EDT image is not calibrated, output must be multiplied by Axis calibration
+//	Img<FloatType> negativeEDT = ops.image().distancetransform(negInAnalysis);
+//	
+//	FloatType recal = new FloatType((float)inputImage.axis(Axes.X).get().calibratedValue(1));
+//	negativeEDT = ops.math().multiply(negativeEDT, recal);
+//	println("-Saving EDT");
+//	datasetioService.save(datasetService.create(negativeEDT), outputDir + analysisRegionDS.getName() + "-edt.tif", config);
+//	
+//	println("-Analyzing EDT");
+//	IterableInterval<FloatType> sampledNegEDT = Regions.sampleWithMask(new RandomAccessibleIntervalAsMaskInterval(analysisRegion), negativeEDT);
+//	Collection<double> negativeEDTvalues = new ArrayList();
+//	sampledNegEDT.cursor().forEachRemaining((pixel)->{
+//		negativeEDTvalues.add(pixel.getRealDouble())
+//	});
+//	returnValues.put("NegEDTcollection", negativeEDTvalues);
 	
 	//endRegion
 	
@@ -155,7 +169,7 @@ LinkedHashMap<String, Object> getBoneMeasurements(Dataset inputImage, Dataset an
 	returnValues.put("Bone Volume", bv);
 	returnValues.put("Total Volume", tv);
 	returnValues.put("BV/TV", (bv/tv));
-	returnValues.put("Max bone gap radius", ops.stats().max(sampledNegEDT));
+	//returnValues.put("Max bone gap radius", ops.stats().max(sampledNegEDT));
 	returnValues.put("Number of bones", particleSize.size());
 	returnValues.put("Mean bone volume (cubic mm)", particleSize.stream()
         .mapToDouble(a -> a)
@@ -165,9 +179,15 @@ LinkedHashMap<String, Object> getBoneMeasurements(Dataset inputImage, Dataset an
     returnValues.put("Bone size SD", sdCalc.evaluate());
 	returnValues.put("Bone density mean (mgHA/ccm)", cal.getCValue(ops.stats().mean(sampledBone).getRealDouble()));
 	returnValues.put("Bone density SD (mgHA/ccm)", cal.getCValue(ops.stats().stdDev(sampledBone).getRealDouble())-cal.getCoefficients()[0]);
+	returnValues.put("Euler char.", boneJResults.get(0,0));
+	returnValues.put("Corr. Euler", boneJResults.get(1,0));
+	returnValues.put("Connectivity", boneJResults.get(2,0));
+	returnValues.put("Conn.D(mm-3)", boneJResults.get(3,0));
+	
+	boneJResults.removeRow(0);
+	//boneJResults.clear();
 	
 	return returnValues;
-	
 }
 
 Calibration cal = inputImagePlus.getCalibration();
@@ -195,24 +215,29 @@ println("Analyzing experimental region");
 imageNames.add(inputImagePlus.getShortTitle() + ": Experimental Region");
 runningTable.add(getBoneMeasurements(imageDS, experimentalMask, boneMask, cal));
 
-CategoryChart boxPlot = plotService.newCategoryChart();
+//region Saving box plot
 
-boxPlot.addBoxSeries().setValues(ImmutableMap.of(
-		"Control region", runningTable.get(0).get("NegEDTcollection"),
-		"Experimental region", runningTable.get(1).get("NegEDTcollection")
-	));
+//println("Creating box plot");
+//CategoryChart boxPlot = plotService.newCategoryChart();
+//
+//boxPlot.addBoxSeries().setValues(ImmutableMap.of(
+//		"Control region", runningTable.get(0).get("NegEDTcollection"),
+//		"Experimental region", runningTable.get(1).get("NegEDTcollection")
+//	));
+//
+//println("Saving box plot");
+//File plotout = new File(outputDir + "BoxPlot.png");
+//CategoryChartConverter converter = new CategoryChartConverter();
+//ChartUtils.saveChartAsPNG(plotout, converter.convert(boxPlot, JFreeChart.class), boxPlot.getPreferredWidth() * 2, boxPlot.getPreferredHeight() * 2);
 
-File plotout = new File(outputDir + "BoxPlot.png");
-CategoryChartConverter converter = new CategoryChartConverter();
-ChartUtils.saveChartAsPNG(plotout, converter.convert(boxPlot, JFreeChart.class), boxPlot.getPreferredWidth() * 2, boxPlot.getPreferredHeight() * 2);
-
+//endRegion
 
 runningTable.get(0).remove("NegEDTcollection");
 runningTable.get(1).remove("NegEDTcollection");
 
 concatenatedTable = Tables.wrap(runningTable, imageNames);
 
-
+println("Closing and re-opening image due to strange bug");
 inputImagePlus.close();
 IJ.openImage(imageSource).show();
 
