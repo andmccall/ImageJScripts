@@ -10,7 +10,7 @@
  * @author Andrew McCall
  */
 
-//Lower cutoff for roughness, used to seed Gaussian blur sigma
+//Cutoffs for roughness in scaled units; used to seed Gaussian blur sigma value
 float lowerCutoff = 2.50;
 float upperCutoff = 250;
 
