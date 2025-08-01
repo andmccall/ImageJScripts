@@ -5,8 +5,6 @@
  * @param z-stack surface profilometry images
  * @param Output directory location to save 'ConcatenatedTable.csv' in
  * 
- * @return void
- * 
  * @author Andrew McCall
  */
 
@@ -90,14 +88,6 @@ for(File file:inputFiles){
 	
 	println("Calculating absolute value image");
 	absRoughness = roughnessDS.copy();
-	
-	//absRoughness = datasetService.create(roughnessDS);
-//	LoopBuilder.setImages(absRoughness).multiThreaded().forEachPixel(
-//		(pixel) -> {
-//			if(pixel.getRealFloat()<0)
-//				pixel.setReal(-1*(pixel.getRealFloat()));
-//		}
-//	);
 
 	absRoughness.cursor().forEachRemaining((pixel) -> {
 		if(pixel.getRealFloat()<0)
