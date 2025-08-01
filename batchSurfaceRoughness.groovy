@@ -1,8 +1,6 @@
 /**
  * Script to analyze surface roughness of input z-stack surface profilometry images.
- * Sends Table to UIService, as Table parameter as output doesn't seem to work for SciJava groovy scripting.
  * Also saves table to designated folder location.
- * Or, I'm doing something wrong.
  * 
  * @param z-stack surface profilometry images
  * @param Output directory location to save 'ConcatenatedTable.csv' in
