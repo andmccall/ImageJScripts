@@ -9,7 +9,7 @@
  */
 
 //Cutoffs for roughness in scaled units; used to seed Gaussian blur sigma value
-float lowerCutoff = 2.50;
+float lowerCutoff = 0.5;
 float upperCutoff = 250;
 
 import ij.IJ;
@@ -17,6 +17,8 @@ import ij.ImagePlus;
 import ij.WindowManager;
 import ij.plugin.ImageCalculator;
 import ij.plugin.ZProjector;
+
+import io.scif.config.SCIFIOConfig;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -38,6 +40,11 @@ import org.scijava.table.Tables;
 #@ DatasetService datasetService
 #@ DatasetIOService datasetIOService
 
+
+
+config = new SCIFIOConfig();
+config.writerSetFailIfOverwriting(false);
+
 Table concatenatedTable;
 
 ArrayList<LinkedHashMap<String, Float>> runningTable = new ArrayList<>();
@@ -53,15 +60,16 @@ for(File file:inputFiles){
 		println(file.getPath() + " - cannot be opened as an image by Fiji, skipping file.");
 		continue;
 	}
-	saveFolder = file.getPath() + "-roughness" + File.separator;
-	new File(saveFolder).mkdirs();
+	
 	//Using datasetIOService to open IMS files
 	println("Opening: " + file.getPath());
 	imp = convert.convert(datasetIOService.open(file.getPath()), ij.ImagePlus.class);
+	saveFolder = outputDir.getPath() + File.separator + imp.getShortTitle() + File.separator;
+	new File(saveFolder).mkdirs();
 	//imp =  IJ.openImage(file.getPath());
 	imageNames.add(imp.getShortTitle());
 	zProj = ZProjector.run(imp,"max");
-	IJ.saveAs(zProj, "Tiff", saveFolder + imp.getShortTitle() + "_z-Projection.tif");
+	IJ.saveAs(zProj, "Tiff", saveFolder + "z-Projection.tif");
 	closeImage(zProj);
 	println("Computing topography");
 	IJ.run(imp, "Compute Topography", "height threshold=0 quadratic_0=20");
@@ -85,6 +93,8 @@ for(File file:inputFiles){
 	
 	roughnessDS = convert.convert(resultOfRoughness, net.imagej.Dataset.class);
 	closeImage(resultOfRoughness);
+	
+	datasetIOService.save(roughnessDS, saveFolder + "roughenss.tif", config);
 	
 	println("Calculating absolute value image");
 	absRoughness = roughnessDS.copy();
