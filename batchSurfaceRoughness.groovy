@@ -30,7 +30,6 @@ import org.scijava.table.Table;
 import org.scijava.table.Tables;
 
 
-//Using this message parameter to force the very nice files Scijava widget
 #@ String (visibility = MESSAGE, value="Drag and drop image files to field below.", required=false) msg
 #@ File[] (label="Select images", style="files") inputFiles
 #@ File (label="Select save location", style="directory") outputDir
