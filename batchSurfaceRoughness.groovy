@@ -94,7 +94,7 @@ for(File file:inputFiles){
 	roughnessDS = convert.convert(resultOfRoughness, net.imagej.Dataset.class);
 	closeImage(resultOfRoughness);
 	
-	datasetIOService.save(roughnessDS, saveFolder + "roughenss.tif", config);
+	datasetIOService.save(roughnessDS, saveFolder + "roughness.tif", config);
 	
 	println("Calculating absolute value image");
 	absRoughness = roughnessDS.copy();
