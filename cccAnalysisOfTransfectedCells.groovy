@@ -1,5 +1,5 @@
 /**
- * The purpose of this script is to concatenate CCC results from multiple images into one file.
+ * The purpose of this script is to concatenate CCC, Pearsons, and M1 and M2 results from multiple images into one file.
  * Each transfected GFP+ cell in each image is processed separately.
  * The script is setup to perform some of the pre-processing steps for CCC (except decon). 
  * The script also assumes multi-channel files with Channel 3 and 4 as the channels to evaluate
@@ -29,7 +29,9 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.logic.BoolType;
 import net.imglib2.algorithm.labeling.ConnectedComponents.StructuringElement;
 import net.imglib2.roi.labeling.*;
+import net.imglib2.roi.Masks;
 import net.imglib2.roi.Regions;
+import net.imglib2.roi.util.IterableRegionOnBooleanRAI;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -46,10 +48,9 @@ import com.google.common.collect.Maps;
 #@ DatasetService datasetService
 
 int bckgSubtract = 103;
-double sigmaBase = 0.5;
 int ch1index=2, ch2index=3;
 
-float minRegionSize = 75.0; //Min cell size in cubic microns
+float minRegionSize = 150.0; //Min cell size in cubic microns
 
 def RAItoDataset(RandomAccessibleInterval input, ImgPlus Metadata){
     return datasetService.create(
@@ -146,6 +147,9 @@ for (int i = 0; i < fileList.length; ++i) {
         trimCh1 = setName(trimToRegion(ch1, thisRegion), image.getName() + "-ch" + ch1index);
         trimCh2 = setName(trimToRegion(ch2, thisRegion), image.getName() + "-ch" + ch2index);
         
+        uiService.show(trimCh1);
+        uiService.show(trimCh2);
+        
         cellMask = setName(RAItoDataset(thisRegion, ch1.getImgPlus()),"CellMask-"+(thisRegionLabel+1));
         
 		println("Starting CCC on region " + (thisRegionLabel+1));
@@ -163,16 +167,30 @@ for (int i = 0; i < fileList.length; ++i) {
 	
 	    imageNames.add(image.getName()+"-"+(thisRegionLabel+1));
 	    
+	    println("Calculating Mander's coefficients");
+	    //Moments seems to give most reasonable cutoff
+	    
+	    ch1Bit = ops.threshold().moments(trimCh1);
+	    ch2Bit = ops.threshold().moments(trimCh2);
+	    
+	    uiService.show(ch1Bit);
+        uiService.show(ch2Bit);
+	    
+	    chOverlap = Masks.toIterableRegion(Masks.toMaskInterval(ch1Bit).and(Masks.toMaskInterval(ch2Bit)));
+	    
+	    //println((double)ops.stats().sum(Regions.sample(chOverlap, trimCh1))/(double)ops.stats().sum(Regions.sample(new IterableRegionOnBooleanRAI(ch1Bit), trimCh1)));
+
 	    runningTable.add(
-	    	Maps.newHashMap(
-	    		ImmutableMap.of(
-	    			"Mean", tableOut.get(0,0), 
-	    			"StDev", tableOut.get(0,1), 
-	    			"Confidence", tableOut.get(0,2), 
-	    			"R-Squared", tableOut.get(0,3),
-	    			"Gaussian Height", tableOut.get(0,4)
-	    		)
-	    	)
+    		ImmutableMap.builder()
+    			.put("CCC-Mean", tableOut.get(0,0)) 
+    			.put("CCC-StDev", tableOut.get(0,1)) 
+    			.put("CCC-Confidence", tableOut.get(0,2))
+    			.put("CCC-R-Squared", tableOut.get(0,3))
+    			.put("CCC-Gaussian Height", tableOut.get(0,4))
+    			.put("Pearsons", ops.coloc().pearsons(Regions.sample(thisRegion, ch1), Regions.sample(thisRegion, ch2)))
+    			.put("M1", (ops.stats().sum(Regions.sample(chOverlap, trimCh1)).get()/ops.stats().sum(Regions.sample(new IterableRegionOnBooleanRAI(ch1Bit), trimCh1)).get()))
+    			.put("M2", (ops.stats().sum(Regions.sample(chOverlap, trimCh2)).get()/ops.stats().sum(Regions.sample(new IterableRegionOnBooleanRAI(ch2Bit), trimCh2)).get()))
+    			.build()	
 	    );
     });
     
