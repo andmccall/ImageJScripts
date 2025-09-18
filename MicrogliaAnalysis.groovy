@@ -243,7 +243,7 @@ for (int i = 0; i < fileList.length; ++i) {
         }
     	
     	//String treeName = (-thisRegion.origin().getLongPosition(0)) + "," + (-thisRegion.origin().getLongPosition(1)) + "," +(-thisRegion.origin().getLongPosition(2)) + "-" + thisRegionLabel;
-        String thisRegionOutputFolder = fileList[i].getPath()+"-out" + File.separator + thisRegionLabel + File.separator;
+        String thisRegionOutputFolder = fileList[i].getPath()+"-out" + File.separator + (thisRegionLabel+1) + File.separator;
         new File(thisRegionOutputFolder).mkdirs();
 
         ImagePlus thisRegionMask = RAItoImagePlus(filledRegion, microglia);
@@ -267,7 +267,7 @@ for (int i = 0; i < fileList.length; ++i) {
         thisRegionImg = RAItoDataset(Views.zeroMin(ops.transform().intervalView(microglia, thisRegion)), microglia);
         //thisRegionImg.setTitle(thisRegion.size() + "-data");
         //uiService.show(thisRegionImg);
-        datasetioService.save(thisRegionImg, thisRegionOutputFolder + thisRegionLabel + "-data.tif", config);
+        datasetioService.save(thisRegionImg, thisRegionOutputFolder + (thisRegionLabel+1) + "-data.tif", config);
         
         Img thisRegionIsolatedImg = microglia.factory().create(thisRegion);            
         LabelRegionMaskApply: {
@@ -293,7 +293,7 @@ for (int i = 0; i < fileList.length; ++i) {
         IJ.run(isolatedImagePlus, "3D Project...", "projection=[Brightest Point] axis=Y-Axis slice=1 initial=0 total=358 rotation=2 lower=1 upper=255 opacity=0 surface=100 interior=50 interpolate");
         rotating = IJ.getImage();
         IJ.run(rotating, "Canvas Size...", "width="+(rotating.getWidth() + rotating.getWidth()%2)+" height="+(rotating.getHeight() + rotating.getHeight()%2)+" position=Top-Left zero");	            
-        IJ.run(rotating, "Movie...", "frame=15 container=.mp4 using=MPEG4 video=excellent save=[" + thisRegionOutputFolder + thisRegionLabel + "-isolated.mp4]");
+        IJ.run(rotating, "Movie...", "frame=15 container=.mp4 using=MPEG4 video=excellent save=[" + thisRegionOutputFolder + (thisRegionLabel+1) + "-isolated.mp4]");
         rotating.changes = false;
         
         //SNT thisSNT = sntService.initialize(thisRegionMask, false);
@@ -319,7 +319,7 @@ for (int i = 0; i < fileList.length; ++i) {
     	
     	if(trees.size() > 1){System.out.println("Error: more than one tree produced for a single cell");}
         
-        treeNames.add("" + thisRegionLabel);
+        treeNames.add("" + (thisRegionLabel+1));
         for(Tree tree:trees){
         	tree.get(0).setSWCType(Path.SWC_SOMA);
         	
@@ -387,8 +387,8 @@ for (int i = 0; i < fileList.length; ++i) {
 	        Profile shollProfile = parser.getProfile();
 	        HashMap<String, Double> tempShollMap = listToMap(shollProfile.radii(), shollProfile.counts());  
 	        runningShollTable.add(tempShollMap);
-	        Table shollTable = Tables.wrap(shollProfile.counts(), thisRegionLabel + "-Counts", shollProfile.radii().stream().map(String::valueOf).collect(Collectors.toList()));
-	        ioService.save(shollTable, thisRegionOutputFolder + thisRegionLabel + "-ShollCounts.csv");  
+	        Table shollTable = Tables.wrap(shollProfile.counts(), (thisRegionLabel+1) + "-Counts", shollProfile.radii().stream().map(String::valueOf).collect(Collectors.toList()));
+	        ioService.save(shollTable, thisRegionOutputFolder + (thisRegionLabel+1) + "-ShollCounts.csv");  
         }
         	            
         isolatedImagePlus.close();
