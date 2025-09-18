@@ -147,8 +147,8 @@ for (int i = 0; i < fileList.length; ++i) {
         trimCh1 = setName(trimToRegion(ch1, thisRegion), image.getName() + "-ch" + ch1index);
         trimCh2 = setName(trimToRegion(ch2, thisRegion), image.getName() + "-ch" + ch2index);
         
-        uiService.show(trimCh1);
-        uiService.show(trimCh2);
+//        uiService.show(trimCh1);
+//        uiService.show(trimCh2);
         
         cellMask = setName(RAItoDataset(thisRegion, ch1.getImgPlus()),"CellMask-"+(thisRegionLabel+1));
         
@@ -173,8 +173,8 @@ for (int i = 0; i < fileList.length; ++i) {
 	    ch1Bit = ops.threshold().moments(trimCh1);
 	    ch2Bit = ops.threshold().moments(trimCh2);
 	    
-	    uiService.show(ch1Bit);
-        uiService.show(ch2Bit);
+//	    uiService.show(ch1Bit);
+//        uiService.show(ch2Bit);
 	    
 	    chOverlap = Masks.toIterableRegion(Masks.toMaskInterval(ch1Bit).and(Masks.toMaskInterval(ch2Bit)));
 	    
@@ -203,3 +203,4 @@ for (int i = 0; i < fileList.length; ++i) {
 uiService.show(concatenatedTable);
 
 println("Finished");
+println("All Finished: " + (java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES)));
