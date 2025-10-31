@@ -31,5 +31,3 @@ GParsPool.withPool(4) {
 	}
 }
 println("All files converted");
-
-//"QuPath-0.3.2 (console).exe" convert-ome Y:\temp-Oli\weird_tif\15936.tif Y:\temp-Oli\weird_tif\15936.ome.tiff -p -t 1
