@@ -1,6 +1,6 @@
 #@ File[] (label="Select images", style="files") images
 #@ String (label="Path to QuPath Executable", value="C:\\Users\\406SRVBRB\\AppData\\Local\\QuPath-0.5.1\\QuPath-0.5.1 (console).exe") quPathExe
-#@ Integer (label="Parallelization number:", value = 4) parallel
+#@ Integer (label="Parallelization number:", value = 1) parallel
 
 import groovyx.gpars.GParsPool;
 
