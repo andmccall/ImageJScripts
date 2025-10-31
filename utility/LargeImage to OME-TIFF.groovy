@@ -1,18 +1,11 @@
 #@ File[] (label="Select images", style="files") images
-//#@ String extension (label="Image extension", value="tif")
 #@ String (label="Path to QuPath Executable", value="C:\\Users\\406SRVBRB\\AppData\\Local\\QuPath-0.5.1\\QuPath-0.5.1 (console).exe") quPathExe
+#@ Integer (label="Parallelization number:", value = 4) parallel
 
 import groovyx.gpars.GParsPool;
-//
-//def folder = imagesDirectory
-//
-//def convertedFolder = new File( folder.getParent(), "converted")
-//convertedFolder.mkdirs()
-//
-//def fileList = folder.listFiles().findAll{ it.getName().endsWith(extension) && !it.getName().contains("Overview") }
 
 
-GParsPool.withPool(4) {
+GParsPool.withPool(parallel) {
 	images.eachParallel{ file ->
 		println("Converting " + file.getPath());
 		
@@ -25,7 +18,6 @@ GParsPool.withPool(4) {
 						.redirectErrorStream(true)
 						.redirectOutput(outputFile);
 		
-		//println (pb.command());
 		pb.start().waitFor();
 		println("Finished " + file.getPath());
 	}
