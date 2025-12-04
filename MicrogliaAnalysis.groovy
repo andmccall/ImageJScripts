@@ -343,6 +343,7 @@ for (int i = 0; i < fileList.length; ++i) {
         		Maps.newHashMap(
         			ImmutableMap.builder()
         				//Branches, nodes and paths
+						.put("Soma radius", maxEuclidean.getRealFloat())
         				.put("Number of branches", treeStats.getSummaryStats(TreeStatistics.N_BRANCHES).getMean())            				
         				.put("Number of branch nodes",  treeStats.getSummaryStats(TreeStatistics.N_BRANCH_NODES).getMean())
         				.put("Number of total nodes",  treeStats.getSummaryStats(TreeStatistics.N_NODES).getMean())
