@@ -16,7 +16,7 @@ The majority of the scripts have the same general workflow for execution, that i
 - Second section: A Labkit classifier file specific to the provided images. Simply drag and drop the classifier into the input widget.
 - Checkbox for GPU acceleration: If you have an NVIDIA graphics card, and you install CLIJ and CLIJ2, you can check this box to speed up the Labkit classification process.
 - Output directory: Some scripts will ask for an output directory to save the data to, others will save to the same location as the input files, or folders within. Which is used often depends on the complexity of the output, and preference of the lab the script was initially designed for.
-- Some scripts will have additional parameters that need to be set. Usually these are inuitive as to their purpose.
+- Some scripts will have additional parameters that need to be set. Usually these are intuitive as to their purpose.
 4. After filling in the dialog box and hitting OK the script will start. The majority of the scripts I write will run fully automated in the background. At the bottom of the script editor is an output window where most scripts will give occasional updates, including a typical "All Finished!" update at the end. Some steps take a very long time, so be patient. If you are concerned that your script is not running, you can open up task manager (Activity Monitor on Mac) and check to make sure that Fiji is using some of the CPU. Some processing steps are not multi-core optimized, so even 2 to 5% usage can indicate normal script operation.
 5. Most scripts auto-save their data, so typically when the "All Finished!" message pops up in the output of the script editor window, you can close Fiji and your data should be ready for you. 
 
