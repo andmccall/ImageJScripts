@@ -62,4 +62,5 @@ for(File file:inputFiles){
 	println("Saving mesh");
 	stlIO.save(surface, file.getPath() + "-surface.stl");
 }
-println("All Finished!");
+
+println("All Finished: " + (java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES)));
