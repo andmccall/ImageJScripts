@@ -15,6 +15,8 @@ list = getList("image.titles");
 
 for (i = 0; i < list.length; i++) {
 	selectImage(list[i]);
+	getVoxelSize(width, height, depth, unit);
+	setVoxelSize(width, height, depth, "um");
 	getDimensions(width, height, channels, slices, frames);
 	if(channels !=3){
 		continue;
