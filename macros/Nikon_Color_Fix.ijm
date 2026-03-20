@@ -19,11 +19,16 @@ for (i = 0; i < list.length; i++) {
 	if(channels !=3){
 		continue;
 	}
+	Stack.setDisplayMode("composite");
+	call("ij.ImagePlus.setDefault16bitRange", 10);
 	Stack.setChannel(1);
 	run("Blue");
+	setMinAndMax(0, 1023);
+	Stack.setChannel(2);
+	setMinAndMax(0, 1023);
 	Stack.setChannel(3);
 	run("Red");
-	call("ij.ImagePlus.setDefault16bitRange", 10);
+	setMinAndMax(0, 1023);
 	File.makeDirectory(getDir("image") + File.separator + "color_fixed_tiffs");
 	saveAs("Tiff", getDir("image") + File.separator + "color_fixed_tiffs" + File.separator + list[i]);
 }		
