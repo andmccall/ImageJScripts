@@ -17,12 +17,11 @@ int minImplant = 40020;
 int contactAreaRange = 3;
 int boneVolumeRange = 10;
 
+//Utility shape, do no modify
+Shape shape = new HyperSphereShape(5);
+
 Shape contactAreaShape = new RectangleShape(contactAreaRange, true);
 Shape boneInRangeShape = new RectangleShape(boneVolumeRange, true);
-
-
-//Utility shape, do no modify
-Shape shape = new HyperSphereShape(3);
 
 import net.imglib2.algorithm.binary.Thresholder;
 import java.util.function.*;
@@ -33,13 +32,11 @@ import org.apache.commons.math3.geometry.euclidean.threed.Vector3D;
 import ij.plugin.FolderOpener;
 import ij.ImagePlus;
 
-
 import io.scif.config.SCIFIOConfig;
 
 import net.imagej.axis.Axes;
 import net.imagej.Dataset; 
 import net.imagej.ImgPlus;
-
 
 import net.imglib2.algorithm.neighborhood.*;
 import net.imglib2.algorithm.labeling.ConnectedComponents.StructuringElement;
@@ -61,13 +58,13 @@ import net.imglib2.type.numeric.ComplexType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import net.imglib2.util.FlatCollections;
+import net.imglib2.util.Intervals;
 
 import org.scijava.plot.*;
 import org.scijava.plot.defaultplot.*;
 import org.scijava.table.Table;
 import org.scijava.table.Tables;
 import org.scijava.ui.swing.viewer.plot.jfreechart.CategoryChartConverter;
-
 
 //Mesh imports
 
@@ -89,6 +86,8 @@ import org.apache.commons.math3.stat.descriptive.moment.StandardDeviation
 import com.google.common.collect.ImmutableMap;
 
 #@ File (label="Select directory of DICOM directories", style = "directory") dicomDirectory
+#@ File (label="Classifier file from Labkit", style = "file") classifier
+#@ boolean (label="Use GPU? (requires NVIDIA gpu and CLIJ)") useGPU
 #@ File (label="Output directory", style="directory", persist=true) outputDir
 
 #@ UIService uiService
@@ -109,33 +108,14 @@ def ImgtoDataset(RandomAccessibleInterval input, Dataset Metadata){
             ));
 }
 
-//def opsMeshToCustomMesh(opsMesh, color) {
-//    List<Point3f> points = new ArrayList<Point3f>();
-//    for (t in opsMesh.triangles()) {
-//        points.add(new Point3f(t.v0xf(), t.v0yf(), t.v0zf()));
-//        points.add(new Point3f(t.v1xf(), t.v1yf(), t.v1zf()));
-//        points.add(new Point3f(t.v2xf(), t.v2yf(), t.v2zf()));
-//    }
-//    CustomTriangleMesh ctm = new CustomTriangleMesh(points);
-//    ctm.setColor(color);
-//    return ctm;
-//}
-//
-//def showMesh(Mesh inputMesh){	
-//	def mesh3dv = opsMeshToCustomMesh(inputMesh, new Color3f(1, 0, 1));
-//	
-//	// Display original image and meshes in 3D Viewer.
-//	def univ = new Image3DUniverse();
-//	//univ.addVoltex(imp, 1)
-//	univ.addCustomMesh(mesh3dv, "Surface Mesh");
-//	univ.show();
-//}
-
 //endRegion
 
 //region Main script start
 
 STLMeshIO stlIO = new STLMeshIO();
+
+config = new SCIFIOConfig();
+config.writerSetFailIfOverwriting(false);
 
 Table concatenatedTable;
 
@@ -154,8 +134,10 @@ for (int i = 0; i < folderList.length; ++i) {
 	Dataset image = converter.convert(inputImagePlus, net.imagej.Dataset.class);
 	inputImagePlus.close();
 	
-	File imageOutput = new File(outputDir.getPath() + File.separator + image.getName() + File.separator);
+	String name = image.getName();
+	File imageOutput = new File(outputDir.getPath() + File.separator + name + File.separator);
 	imageOutput.mkdirs();
+	datasetioService.save(image, imageOutput.getPath() + File.separator + name + ".tiff", config);
 	
 	//Measure direct contact: 1. Segment each, clean, dilate both slightly, AND operation, measure volume.	
 	//region Generate Masks
@@ -165,41 +147,47 @@ for (int i = 0; i < folderList.length; ++i) {
 	double volume = image.axis(Axes.X).get().calibratedValue(1) * 
 			image.axis(Axes.Y).get().calibratedValue(1) * 
 			image.axis(Axes.Z).get().calibratedValue(1);
+			
+	Img<BitType> boneMask = ops.create().img(image, new BitType());
+	Img<BitType> implantMask = ops.create().img(image, new BitType());
+			
+	println("Generating masks");
+	ImgLabeling imgLabels = ImgLabeling.fromImageAndLabels(commandService.run("sc.fiji.labkit.ui.plugin.SegmentImageWithLabkitPlugin", false, 
+		"input", image,
+		"segmenter_file", classifier,
+		"use_gpu", useGPU
+	).get().getOutput("output"), new ArrayList(["bone","implant"]));
 	
-	Img boneMask = ops.create().img(image, new BitType());
+//	uiService.show(imgLabels.getIndexImg());
+	LabelRegions labkitLabels = new LabelRegions(imgLabels);
 	
-	println("Generating bone mask");
-	BiConsumer aboveBelow = {input,mask -> mask.set(input.get() > minImageBone && input.get() <maxImageBone)};	
-	LoopBuilder.setImages(image, boneMask).multiThreaded().forEachPixel(aboveBelow);
+	copyLabelRegion2Img(boneMask, labkitLabels.getLabelRegion("bone"));
+	copyLabelRegion2Img(implantMask, labkitLabels.getLabelRegion("implant"));
 	
-	println("Cleaning bone mask");
-	boneMask = ops.morphology().erode(boneMask, shape);
-	boneMask = ops.morphology().dilate(boneMask, shape);
+//	uiService.show(boneMask);
 	
-	println("Generating implant mask");
-	ComplexType thresholdValue = image.getType();
-	thresholdValue.set(minImplant);
-	Img implantMask = ops.threshold().apply(image, thresholdValue);
+	//Mask cleaning may no longer be necessary with Labkit processing and largetst bone extraction
+//	println("Cleaning bone mask");
+	boneMask = ops.morphology().erode(boneMask, new RectangleShape(1, true));
+	boneMask = ops.morphology().dilate(boneMask, new RectangleShape(1, true));
+
+	//region Export for full implant surface STL, comment out to skip
 	println("Converting implant mask to mesh and saving");
 	stlIO.save(
 		Meshes.removeDuplicateVertices(
 			ops.geom().marchingCubes(implantMask)
 			,1)
-		, outputDir.getPath() + File.separator + image.getName() + File.separator + image.getName() + "_implant-surface.stl"
+		, outputDir.getPath() + File.separator + name + File.separator + name + "_implant-surface.stl"
 	);
+	//endregion
 	
+	
+	//Contact volume should be after clipping of top?
 	println("Calculating contact volume");
 	Img contactMaskRegion = ops.morphology().dilate(implantMask, contactAreaShape);
 	//endRegion Generate Masks
 
 	double contactVolume = Regions.countTrue(ops.logic().and(boneMask, contactMaskRegion))*volume;
-	
-//	double contactVolume = Masks.toIterableRegion(
-//		Masks.and(
-//			Masks.toMaskInterval(boneMask),
-//			Masks.toMaskInterval(contactMaskRegion)
-//		)
-//	).size()*volume;
 	
 	contactMaskRegion = null;
 	
@@ -208,39 +196,71 @@ for (int i = 0; i < folderList.length; ++i) {
 	
 	//Measure bone within range of implant: 1. Segment each, clean, dilate, Convex Hull of bone, intersection(removes contribution of stuff from screw top), then dilate result extensively, measure bone in range. Normalize to intersection volume. Also report intersection volume
 	//Need to clean up boneMask to be one solid object?
+	
+	LabelRegions bonePieces = new LabelRegions(ops.labeling().cca(boneMask, StructuringElement.EIGHT_CONNECTED));
+	LabelRegion largestBone = null;
+	
+	bonePieces.forEach((LabelRegion l) ->{
+		if(largestBone == null){
+			largestBone = l;
+		}
+		if(l.size() > largestBone.size())
+			largestBone = l;
+	});
+	
+	
+	Img<BitType> largestBoneMask = ops.create().img(image, new BitType());
+	copyLabelRegion2Img(largestBoneMask, largestBone);
+	
 	println("Converting bone mask to surface mesh");
-	Mesh hullSurface = ops.geom().marchingCubes(ops.morphology().fillHoles(boneMask));
+	Mesh hullSurface = ops.geom().marchingCubes(ops.morphology().fillHoles(largestBoneMask));
 	println("Removing duplicate verticies from surface mesh");
 	hullSurface = Meshes.removeDuplicateVertices(hullSurface, 1);
 	
-	println("Saving bone mesh to STL");
-	
+	println("Saving bone mesh to STL");	
 	hullSurface = Meshes.simplify(hullSurface, 0.1, 10);
-	stlIO.save(hullSurface, outputDir.getPath() + File.separator + image.getName() + File.separator + image.getName() + "_bone-surface.stl");
+	
+	//Export for Bone STL, comment out to skip
+	stlIO.save(hullSurface, outputDir.getPath() + File.separator + name + File.separator + name + "_bone-surface.stl");
 	
 	println("Calculating convex hull");	
 	hullSurface = (Mesh) ops.geom().convexHull(hullSurface).get(0);
-	//stlIO.save(hullSurface, outputDir.getPath() + File.separator + image.getName() + File.separator + image.getName() + "_hull-surface.stl");
+	
+	//Export for Convex Hull STL, comment out to skip
+	stlIO.save(hullSurface, outputDir.getPath() + File.separator + name + File.separator + name + "_hull-surface.stl");
 	
 	println("Revoxelizing convex hull");
 	//Ops voxelization sucks, going to try something else
-	//Img hullImg = ops.geom().voxelization(hullSurface, (int)image.dimension(Axes.X), (int)image.dimension(Axes.Y), (int)image.dimension(Axes.Z));
 	Img<BitType> hullMask = voxelizer(hullSurface, image);
 	
+	//done with hullSurface
 	hullSurface = null;
 	
-	
+	println("Filling convex hull");
 	hullMask = ops.morphology().erode(ops.morphology().fillHoles(ops.morphology().dilate(hullMask, shape)),shape);
 	
+	println("Calculating embedded portion of implant");
 	implantMask = ops.logic().and(implantMask, hullMask);
+	
+	//region Embedded implant STL export, comment out to skip
+	println("Exporting embedded implant STL");
+	Mesh embeddedImplant = ops.geom().marchingCubes(implantMask);
+	embeddedImplant = Meshes.removeDuplicateVertices(embeddedImplant, 1);
+	embeddedImplant = Meshes.simplify(embeddedImplant, 0.1, 10);
+	stlIO.save(embeddedImplant, outputDir.getPath() + File.separator + name + File.separator + name + "_embeddedImplant-surface.stl");
+	//endregion
+
 	double embeddedSize = Regions.countTrue(implantMask)*volume;
+
+	//done with hullMask
 	hullMask = null;
 	
-	implantMask = ops.morphology().dilate(implantMask, boneInRangeShape);
-	
+	println("Calculating bone volume in extended range of embedded implant");
+	implantMask = ops.morphology().dilate(implantMask, boneInRangeShape);	
 	double boneInRange = Regions.countTrue(ops.logic().and(implantMask, boneMask))*volume;
 	
-	imageNames.add(image.getName());
+	println("Adding results to table and saving");
+	imageNames.add(name);
 	runningTable.add(
 		ImmutableMap.of(
 			"Volume of contact patch: ", contactVolume,
@@ -253,13 +273,25 @@ for (int i = 0; i < folderList.length; ++i) {
 	
 	concatenatedTable = Tables.wrap(runningTable, imageNames);
 	ioService.save(concatenatedTable, outputDir.getPath() + File.separator + "concatenatedTable.csv");
-	
 }
 
 
 uiService.show(concatenatedTable);
 
 println("All Finished: " + (java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES)));
+
+//Copy LabelRegion to full binary image
+
+def void copyLabelRegion2Img(Img<BitType> outputImg, LabelRegion region){
+		Cursor cursor = region.localizingCursor();
+		RandomAccess<BitType> ra = outputImg.randomAccess();
+		
+		while(cursor.hasNext()){
+			cursor.fwd();
+			if(cursor.get().get())
+				ra.setPositionAndGet(cursor.positionAsPoint()).setOne();
+		}
+}
 
 //voxelizer functions:
 
@@ -271,9 +303,11 @@ def Img<BitType> voxelizer(Mesh inputMesh, Interval dimensions){
 			LongStream.rangeClosed(triangleBox.min(0), triangleBox.max(0)).parallel().forEach( x ->{
 				LongStream.rangeClosed(triangleBox.min(1), triangleBox.max(1)).forEach( y ->{
 					LongStream.rangeClosed(triangleBox.min(2), triangleBox.max(2)).forEach( z ->{
-						if (pointToTriangleDist(new Vector3D((double)x, (double)y, (double)z), t) < 1.0){
-							synchronized(ra){
-								ra.setPositionAndGet(x,y,z).set(true);
+						if(Intervals.contains(dimensions, new Point(x,y,z))){
+							if (pointToTriangleDist(new Vector3D((double)x, (double)y, (double)z), t) < 1.0){
+								synchronized(ra){
+									ra.setPositionAndGet(x,y,z).set(true);
+								}
 							}
 						}
 					});
