@@ -10,6 +10,8 @@
  * Or you can drag and drop it into Fiji and hit Run.
  */
 
+#@ String (visibility = MESSAGE, value="Drag and drop a save folder to the field below.", required=false) msg
+#@ File (label="Select save folder", style = "directory") saveDirectory
 
 list = getList("image.titles");	
 
@@ -31,6 +33,5 @@ for (i = 0; i < list.length; i++) {
 	Stack.setChannel(3);
 	run("Red");
 	setMinAndMax(0, 1023);
-	File.makeDirectory(getDir("image") + File.separator + "color_fixed_tiffs");
-	saveAs("Tiff", getDir("image") + File.separator + "color_fixed_tiffs" + File.separator + list[i]);
+	saveAs("Tiff", saveDirectory + File.separator + list[i]);
 }		
