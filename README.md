@@ -9,7 +9,7 @@ If you are interested in hiring me for script writing services, you can contact 
 The majority of the scripts have the same general workflow for execution, that is roughly as follows:
 
 0. Download Fiji (imagej.net), and use the Fiji updater (Help > Update > Manage Update sites) to add any required plugins. Required plugins are almost always listed in the description section of the script, at the very top. Labkit is the most common requirement.
-1. Select the script you wish to use above, and click the download button in the upper-right corner of the script preview window.
+1. Select the script you wish to use above, or use the link that I sent to you, and click the download button in the upper-right corner of the script preview window.
 2. Open Fiji and drag and drop the downloaded script onto the main Fiji window, this will open the script editor. Then, hit the "Run" button on the script editor window (maximize the window if you can't see it). A few scripts work on the active Fiji image and will require an already open image in Fiji, though most do not. If an error comes up saying "A ImagePlus (or Dataset) is required but none exist", you'll need to open your image(s) first.
 3. Generally, a script specific Dialog box will pop up. The typical layout for many scripts is:
 - First section: Images to be processed. Simply drag and drop the image files from windows explorer to this input widget. A few scripts require directories instead of files, but this is fairly rare.
