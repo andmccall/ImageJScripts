@@ -25,6 +25,7 @@ File[] folderList = dicomDirectory.listFiles();
 
 config = new SCIFIOConfig();
 config.writerSetFailIfOverwriting(false);
+config.put("WRITE_BIG_TIFF", true);
 
 for (int i = 0; i < folderList.length; ++i) {
 	if(!folderList[i].isDirectory()){
