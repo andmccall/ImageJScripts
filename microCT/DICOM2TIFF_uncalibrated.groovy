@@ -12,6 +12,7 @@
 import ij.plugin.FolderOpener;
 
 import net.imagej.Dataset;
+import net.imagej.axis.Axes;
 import io.scif.config.SCIFIOConfig;
 
 #@ String (visibility = MESSAGE, value="Set directory in field below.", required=false) msg
@@ -25,7 +26,6 @@ File[] folderList = dicomDirectory.listFiles();
 
 config = new SCIFIOConfig();
 config.writerSetFailIfOverwriting(false);
-config.put("WRITE_BIG_TIFF", true);
 
 for (int i = 0; i < folderList.length; ++i) {
 	if(!folderList[i].isDirectory()){
@@ -33,6 +33,17 @@ for (int i = 0; i < folderList.length; ++i) {
 	}
 	println("Opening DICOM folder: " + folderList[i].getPath());
 	Dataset currentDS = converter.convert(FolderOpener.open(folderList[i].getPath(), ""), net.imagej.Dataset.class);
+		
+	currentDS.numDimensions().times { dim -> 
+	    def axisType = currentDS.axis(dim).type()
+	    
+	    // If the axis is marked as TIME (Frames), change it to Z (Slices)
+	    if (axisType == Axes.TIME) {
+	        currentDS.axis(dim).setType(Axes.Z)
+	        println "Dimension " + dim + " successfully changed from TIME to Z."
+	        currentDS.axis(dim).setScale(currentDS.axis(Axes.X).getScale());
+	    }
+	}
 	
 	dios.save(currentDS, outputDir.getPath() + File.separator + currentDS.getName() + ".tif", config);
 }
