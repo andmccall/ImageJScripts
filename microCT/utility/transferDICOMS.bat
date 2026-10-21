@@ -1,15 +1,14 @@
 @echo off
 setlocal
 
-set "SRC=C:\path\to\parent"
-set "DEST=C:\path\to\destination"
+set "SRC=Z:\00000101"
+set "DEST=C:\Users\406SRVBRB\Desktop\101"
 
 if not exist "%DEST%" mkdir "%DEST%"
 
 for /d %%D in ("%SRC%\*") do (
-    for %%F in ("%%D\*.dcm") do (
-        copy "%%F" "%DEST%\%%~nxD_%%~nxF"
-    )
+    mkdir "%DEST%\%%~nxD\"
+    xcopy "%%D\*.dcm" "%DEST%\%%~nxD\" /Y
 )
 
 endlocal
