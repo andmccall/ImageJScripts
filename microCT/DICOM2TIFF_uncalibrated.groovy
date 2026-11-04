@@ -10,6 +10,7 @@
  */
 
 import ij.plugin.FolderOpener;
+import ij.ImagePlus;
 
 import net.imagej.Dataset;
 import net.imagej.axis.Axes;
@@ -32,7 +33,8 @@ for (int i = 0; i < folderList.length; ++i) {
 		continue;
 	}
 	println("Opening DICOM folder: " + folderList[i].getPath());
-	Dataset currentDS = converter.convert(FolderOpener.open(folderList[i].getPath(), ""), net.imagej.Dataset.class);
+	ImagePlus imp = FolderOpener.open(folderList[i].getPath(), "");
+	Dataset currentDS = converter.convert(imp, net.imagej.Dataset.class);
 		
 	currentDS.numDimensions().times { dim -> 
 	    def axisType = currentDS.axis(dim).type()
