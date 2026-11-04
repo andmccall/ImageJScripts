@@ -13,6 +13,9 @@
 
 Table.create("Marginal Gap Thicknesses");
 
+offset = 45;
+angle = 6;
+
 for (j = 0; j < inputFiles.length; j++) {
 	open(inputFiles[j]);
 	title = getTitle();
@@ -33,23 +36,25 @@ for (j = 0; j < inputFiles.length; j++) {
 	setTool("point");
 	run("Set Measurements...", "mean redirect=None decimal=3");
 	
-	for (i = 0.0; i < 360; i += 20) {
+	for (i = offset; i < 360 + offset; i += angle) {
 		makeLine(halfDim, halfDim, findX(halfDim, i), findY(halfDim, i));
 		run("Multi Kymograph", "linewidth=1");
+		setLocation(10, 10, 1500, 1000);
 		while (!isKeyDown("space")) {
 		    wait(10);
 		}
 		getSelectionCoordinates(xpoints, ypoints);
-		Table.set(title, i/20, getPixel(xpoints[0],ypoints[0]));
+		Table.set(title, Math.round((i-offset)/angle), getPixel(xpoints[0],ypoints[0]));
 		Table.update;
 		close();
 		selectImage(title);
 	}
 
 	close(title);
+	Table.save(outputDir + File.separator + "MarginalGapMeasurements.csv");
 }
 
-Table.save(outputDir + File.separator + "MarginalGapMeasurements.csv");
+
 
 function findX(distance, angle){
 	return (distance * cos(Math.toRadians(angle))) + distance;
