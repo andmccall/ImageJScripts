@@ -4,6 +4,8 @@ println("Script started at: " + startTime);
 /*
  * Description
  */
+
+//Global parameters for user modification:
  
 //importStatements
 
