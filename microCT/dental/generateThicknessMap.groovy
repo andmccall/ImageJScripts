@@ -1,3 +1,6 @@
+startTime = java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+println("Script started at: " + startTime);
+
 /* This script saves the local thickness map of the cement between inserts and crowns in microCT images.
  *  
  *  Also requires a LabKit classifier that separates background from the implant/tooth and crown 
@@ -114,3 +117,10 @@ for (int i = 0; i < fileList.length; ++i) {
 }
 
 uiService.show("All done!");
+
+
+println("Finished!");
+stopTime= java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+println("Script started at " + startTime):
+println("Script finished at " + stopTime);
+println("Total runtime (hours): " + (java.time.temporal.ChronoUnit.MINUTES.between(startTime, stopTime)/60.0));
