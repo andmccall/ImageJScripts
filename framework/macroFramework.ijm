@@ -4,6 +4,8 @@ startTime = getTime();
  * Description
  */
 
+//Global parameters for user modification:
+
 #@ String (visibility = MESSAGE, value="Messsage to force SciJava widget.", required=false) msg
 #@ File[] (label="Select images", style="files") inputFiles
 #@ File (label="Output directory", style="directory", persist=true) outputDir
