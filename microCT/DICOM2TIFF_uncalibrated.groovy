@@ -1,3 +1,6 @@
+startTime = java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+println("Script started at: " + startTime);
+
 /**
  * Script that converts DICOM image sequence stacks and saves them as TIFF stacks
  * Uses File > Import > Image Sequence to function to open DICOMs
@@ -49,4 +52,9 @@ for (int i = 0; i < folderList.length; ++i) {
 	
 	dios.save(currentDS, outputDir.getPath() + File.separator + currentDS.getName() + ".tif", config);
 }
-println("All Finished!");
+
+println("Finished!");
+stopTime= java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+println("Script started at " + startTime):
+println("Script finished at " + stopTime);
+println("Total runtime (hours): " + (java.time.temporal.ChronoUnit.MINUTES.between(startTime, stopTime)/60.0));
