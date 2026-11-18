@@ -1,3 +1,5 @@
+startTime = getTime();
+
 /* This macro generates kymographs from regular radial lines originating from the center of the image, 
  *  allowing the user to then specify a point on the kymograph image to add the intensity
  *  of that point to a table. Designed to work with Thickness maps of cement for crowns.  
@@ -64,3 +66,8 @@ function findY(distance, angle){
 	return (distance * sin(Math.toRadians(angle))) + distance;
 }
 
+
+stopTime = getTime();
+setBatchMode(true);
+print("All finshed, total time taken (hours): " + ((stopTime-startTime)/3600000.0));
+setBatchMode(false);
