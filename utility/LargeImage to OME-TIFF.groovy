@@ -1,3 +1,6 @@
+startTime = java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+println("Script started at: " + startTime);
+
 #@ File[] (label="Select images", style="files") images
 #@ String (label="Path to QuPath Executable", value="C:\\Users\\406SRVBRB\\AppData\\Local\\QuPath-0.5.1\\QuPath-0.5.1 (console).exe") quPathExe
 #@ Integer (label="Parallelization number:", value = 1) parallel
@@ -22,4 +25,9 @@ GParsPool.withPool(parallel) {
 		println("Finished " + file.getPath());
 	}
 }
-println("All files converted");
+
+println("Finished!");
+stopTime= java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+println("Script started at " + startTime):
+println("Script finished at " + stopTime);
+println("Total runtime (hours): " + (java.time.temporal.ChronoUnit.MINUTES.between(startTime, stopTime)/60.0));
